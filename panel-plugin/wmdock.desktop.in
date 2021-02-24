@@ -1,0 +1,10 @@
+[Xfce Panel]
+Type=X-XFCE-PanelPlugin
+Encoding=UTF-8
+_Name=Wmdock Plugin
+_Comment=Plugin that swallows wm dockapps
+Icon=xfce4-wmdock
+X-XFCE-Module=wmdock
+X-XFCE-Internal=false
+X-XFCE-Unique=false
+X-XFCE-API=2.0

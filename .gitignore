@@ -22,7 +22,6 @@ ltmain.sh
 missing
 mkinstalldirs
 panel-plugin/*.desktop
-panel-plugin/*.desktop.in
 po/.intltool-merge-cache
 po/Makefile.in.in
 po/POTFILES
