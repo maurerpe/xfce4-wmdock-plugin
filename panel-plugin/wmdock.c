@@ -24,9 +24,6 @@
 
 #include <stdint.h>
 
-#include <X11/Xatom.h>
-#include <X11/Xutil.h>
-
 #define WNCK_I_KNOW_THIS_IS_UNSTABLE
 #include <libwnck/libwnck.h>
 
