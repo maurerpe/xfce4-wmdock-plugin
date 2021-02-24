@@ -1,0 +1,3 @@
+panel-plugin/wmdock.c
+panel-plugin/wmdock-dialogs.c
+panel-plugin/wmdock.desktop.in

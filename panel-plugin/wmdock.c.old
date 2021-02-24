@@ -1,0 +1,281 @@
+/*  Copyright (C) 2021 Paul Maurer
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+
+#include <stdint.h>
+
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+
+#define WNCK_I_KNOW_THIS_IS_UNSTABLE
+#include <libwnck/libwnck.h>
+
+#include <gtk/gtk.h>
+#include <libxfce4util/libxfce4util.h>
+#include <libxfce4panel/libxfce4panel.h>
+
+#include "wmdock.h"
+#include "wmdock-dialogs.h"
+
+/* prototypes */
+static void
+wmdock_construct (XfcePanelPlugin *plugin);
+
+static void
+wmdock_window_open(WnckScreen   *s,
+		   WnckWindow   *w,
+		   WmdockPlugin *wmdock);
+
+/* register the plugin */
+XFCE_PANEL_PLUGIN_REGISTER (wmdock_construct);
+
+#define DOCKAPP_SIZE 64
+
+static WmdockPlugin *
+wmdock_new (XfcePanelPlugin *plugin) {
+  WmdockPlugin   *wmdock;
+  GtkOrientation  orientation;
+
+  /* allocate memory for the plugin structure */
+  wmdock = g_slice_new0 (WmdockPlugin);
+
+  /* pointer to plugin */
+  wmdock->plugin = plugin;
+
+  /* get the current orientation */
+  orientation = xfce_panel_plugin_get_orientation (plugin);
+
+  /* create some panel widgets */
+  wmdock->ebox = gtk_event_box_new ();
+  gtk_widget_show (wmdock->ebox);
+
+  wmdock->hvbox = gtk_box_new (orientation, 1);
+  gtk_widget_show (wmdock->hvbox);
+  gtk_container_add (GTK_CONTAINER (wmdock->ebox), wmdock->hvbox);
+
+  /* Set number of dockapps to zero */
+  wmdock->num_apps = 0;
+
+  /* Allocate memory for docapps */
+  wmdock->num_alloc = 16;
+  wmdock->dapps = calloc(wmdock->num_alloc, sizeof(*wmdock->dapps));
+  
+  return wmdock;
+}
+
+static void
+wmdock_free (XfcePanelPlugin *plugin,
+             WmdockPlugin    *wmdock) {
+  /* destroy the panel widgets */
+  gtk_widget_destroy (wmdock->hvbox);
+
+  /* free the plugin structure */
+  g_slice_free (WmdockPlugin, wmdock);
+}
+
+static void
+wmdock_orientation_changed (XfcePanelPlugin *plugin,
+                            GtkOrientation   orientation,
+                            WmdockPlugin    *wmdock) {
+  /* change the orientation of the box */
+  gtk_orientable_set_orientation(GTK_ORIENTABLE(wmdock->hvbox), orientation);
+}
+
+static gboolean
+wmdock_size_changed (XfcePanelPlugin *plugin,
+                     gint             size,
+                     WmdockPlugin    *wmdock) {
+  GtkOrientation orientation;
+
+  /* get the orientation of the plugin */
+  orientation = xfce_panel_plugin_get_orientation (plugin);
+
+  /* set the widget size */
+  if (orientation == GTK_ORIENTATION_HORIZONTAL)
+    gtk_widget_set_size_request (GTK_WIDGET (plugin), wmdock->num_apps * DOCKAPP_SIZE, size);
+  else
+    gtk_widget_set_size_request (GTK_WIDGET (plugin), size, wmdock->num_apps * DOCKAPP_SIZE);
+
+  /* we handled the orientation */
+  return TRUE;
+}
+
+static void
+wmdock_construct (XfcePanelPlugin *plugin) {
+  WmdockPlugin *wmdock;
+  WnckScreen *screen;
+
+  /* setup transation domain */
+  xfce_textdomain(GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR, "UTF-8");
+
+  /* create the plugin */
+  wmdock = wmdock_new (plugin);
+
+  /* add the ebox to the panel */
+  gtk_container_add (GTK_CONTAINER (plugin), wmdock->ebox);
+
+  /* show the panel's right-click menu on this ebox */
+  xfce_panel_plugin_add_action_widget (plugin, wmdock->ebox);
+  
+  /* connect plugin signals */
+  screen = wnck_screen_get(0);
+  g_signal_connect (screen, "window_opened",
+		    G_CALLBACK(wmdock_window_open), wmdock);
+  g_signal_connect (G_OBJECT (plugin), "free-data",
+                    G_CALLBACK (wmdock_free), wmdock);
+
+  g_signal_connect (G_OBJECT (plugin), "size-changed",
+                    G_CALLBACK (wmdock_size_changed), wmdock);
+
+  g_signal_connect (G_OBJECT (plugin), "orientation-changed",
+                    G_CALLBACK (wmdock_orientation_changed), wmdock);
+
+  /* show the about menu item and connect signal */
+  xfce_panel_plugin_menu_show_about (plugin);
+  g_signal_connect (G_OBJECT (plugin), "about",
+                    G_CALLBACK (wmdock_about), NULL);
+}
+
+static int
+has_dockapp_hint(WnckWindow *w) {
+  Atom atype;
+  int afmt, result = 0;
+  unsigned long int nitems;
+  unsigned long int naft;
+  unsigned char *dat = NULL;
+  
+  if (XGetWindowProperty(GDK_DISPLAY_XDISPLAY(get_current_gdkdisplay()),
+			 wnck_window_get_xid(w), XfceDockAppAtom, 0, 1, False,
+			 XA_CARDINAL, &atype, &afmt, &nitems, &naft, &dat) == Success) {
+    if (nitems==1 && ((long int *) dat)[0]==1)
+      result = 1;
+    XFree(dat);
+  }
+  XSync(GDK_DISPLAY_XDISPLAY(get_current_gdkdisplay()), False);
+  
+  return result;
+}
+
+static int
+is_dockapp_class(WnckWindow *w) {
+  const char *wmclass;
+  
+  wmclass = wnck_window_get_class_group_name(w);
+  
+  return wmclass && strcmp(wmclass, "DockApp") == 0;
+}
+
+static unsigned long
+is_dockapp(WnckWindow *w) {
+  unsigned long id;
+  XWMHints *hints;
+  int xpos, ypos, width, height;
+  const char *name;
+  
+  if ((name = wnck_window_get_name(w)) == NULL ||
+      strncasecmp(name, "wm", 2) != 0 ||
+      strncasecmp(name, "as", 2) != 0)
+    goto clean;
+  
+  if ((hints = XGetWMHints(GDK_DISPLAY_XDISPLAY(get_current_gdkdisplay()),
+			   wnck_window_get_xid(w))) == NULL)
+    goto clean;
+  
+  if (hints->initial_state != WithdrawnState &&
+      hints->flags != (WindowGroupHint | StateHint | IconWindowHint) &&
+      !has_dockapp_hint(w) &&
+      !is_dockapp_class(w))
+    goto clean2;
+  
+  if (hints->initial_state == WithdrawnState && hints->icon_window) {
+    id = hints->icon_window;
+  } else {
+    id = wnck_window_get_xid(w);
+  }
+  
+  wnck_window_get_client_window_geometry(w, &xpos, &ypos, &width, &height);
+  if (height != DOCKAPP_SIZE || width != DOCKAPP_SIZE)
+      goto clean2;
+  
+  XFree(hints);
+  return id;
+  
+ clean2:
+  XFree(hints);
+ clean:
+  return 0;
+}
+
+/* static int */
+/* dockapp_init(DockApp *dapp, WnckWindow *w, unsigned long id) { */
+/*   dapps->id = id; */
+  
+/*   if ((dapp->sock = GTK_SOCKET(gtk_socket_new())) == NULL) */
+/*     goto err; */
+  
+/*   wnck_window_stick(w); */
+/*   wnck_window_set_skip_tasklist(w, TRUE); */
+/*   wnck_window_set_skip_pager(w, TRUE); */
+
+/*   /\* Set this property to skip the XFCE4 session manager. *\/ */
+/*   set_xsmp_support(w); */
+  
+/*   return 0; */
+  
+/*  err: */
+/*   return -1; */
+/* } */
+
+static void
+wmdock_window_open(WnckScreen   *s,
+		   WnckWindow   *w,
+		   WmdockPlugin *wmdock) {
+  unsigned long id;
+  size_t new_num;
+  DockApp *new;
+  
+  gdk_display_flush(gdk_display_get_default());
+  
+  if ((id = is_dockapp(w)) == 0)
+    return;
+  
+  fprintf(stderr, "Found dockapp: %s\n", wnck_window_get_name(w));
+  
+  if (wmdock->num_apps >= wmdock->num_alloc) {
+    if (wmdock->num_alloc >= SIZE_MAX >> 1)
+      return;
+    
+    new_num = wmdock->num_alloc << 1;
+    if ((new = reallocarray(wmdock->dapps, new_num, sizeof(*new))) == NULL)
+      return;
+    wmdock->num_alloc = new_num;
+    wmdock->dapps = new;
+  }
+  
+  /* if (dockapp_init(&wmdock->dapps[wmdock->num_apps], w, id) < 0) */
+  /*   return; */
+  /* wmdock->num_apps++; */
+  
+  /* XUnmapWindow(GDK_DISPLAY_XDISPLAY(get_current_gdkdisplay()), */
+  /* 	       wnck_window_get_xid(w)); */
+}
