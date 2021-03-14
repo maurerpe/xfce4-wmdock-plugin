@@ -167,16 +167,20 @@ is_dockapp(WnckWindow *w) {
 
 static int
 dockapp_new(WmdockPlugin *wmdock, WnckWindow *w) {
-  DockApp *dapp;
+ int xpos, ypos, width, height;
+ DockApp *dapp;
   
   if ((dapp = malloc(sizeof(*dapp))) == NULL)
     goto err;
-  
+
+  dapp->name = wnck_window_get_name(w);
   dapp->id = wnck_window_get_xid(w);
   
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
   
+  dapp->tile = gtk_fixed_new();
+
   gtk_widget_set_size_request(dapp->sock, width, height);
   gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
 
