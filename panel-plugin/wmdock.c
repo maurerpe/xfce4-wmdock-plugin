@@ -158,7 +158,8 @@ is_dockapp(WnckWindow *w) {
     return 0;
   
   wnck_window_get_client_window_geometry(w, &xpos, &ypos, &width, &height);
-  if (height != DOCKAPP_SIZE || width != DOCKAPP_SIZE)
+  //some dockapps don't have 64x64 geometry (wmclock), if dockapps are smaller 
+  if (height > DOCKAPP_SIZE || width > DOCKAPP_SIZE)
       return 0;
   
   return 1;
@@ -175,11 +176,18 @@ dockapp_new(WmdockPlugin *wmdock, WnckWindow *w) {
   
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
-  gtk_widget_set_size_request(dapp->sock, DOCKAPP_SIZE, DOCKAPP_SIZE);
-  gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->sock, FALSE, FALSE, 0);
-  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
-  gtk_widget_show_all(dapp->sock);
   
+  gtk_widget_set_size_request(dapp->sock, width, height);
+  gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
+
+  wnck_window_get_client_window_geometry(w, &xpos, &ypos, &width, &height);
+  /* center dockapps that aren't 64x64 */
+  gtk_fixed_put(GTK_FIXED(dapp->tile),dapp->sock, (DOCKAPP_SIZE-width)/2, (DOCKAPP_SIZE-height)/2);
+
+  gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->tile, FALSE, FALSE, 0);
+  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
+  gtk_widget_show_all(dapp->tile);
+
   wnck_window_stick(w);
   wnck_window_set_skip_tasklist(w, TRUE);
   wnck_window_set_skip_pager(w, TRUE);

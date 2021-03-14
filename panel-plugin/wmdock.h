@@ -23,6 +23,7 @@ G_BEGIN_DECLS
 /* Dockapp item */
 typedef struct {
   GtkWidget     *sock;
+  GtkWidget     *tile;
   unsigned long  id;
   char          *name;
 } DockApp;
