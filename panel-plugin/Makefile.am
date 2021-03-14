@@ -14,6 +14,7 @@ plugindir = \
 	$(libdir)/xfce4/panel/plugins
 
 libwmdock_la_SOURCES = \
+	tile.xpm \		  
 	wmdock.c \
 	wmdock.h \
 	wmdock-dialogs.c \
