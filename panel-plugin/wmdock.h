@@ -26,6 +26,11 @@ typedef struct {
   GtkWidget     *tile;
   unsigned long  id;
   char          *name;
+
+  int           xpos;
+  int           ypos;
+  int           width;
+  int           height;
 } DockApp;
 
 /* plugin structure */

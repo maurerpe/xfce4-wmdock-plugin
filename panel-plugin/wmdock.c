@@ -193,9 +193,28 @@ static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
   return FALSE;
 }
 
+GtkWidget *tile_from_sock(DockApp *dapp) {
+  GtkWidget *_tile = gtk_fixed_new();
+
+  gtk_widget_set_size_request(dapp->sock, dapp->width, dapp->height);
+
+  /* center dockapps that aren't 64x64 */
+  gtk_fixed_put(GTK_FIXED(_tile),dapp->sock, (DOCKAPP_SIZE-dapp->width)/2, (DOCKAPP_SIZE-dapp->height)/2);
+
+  /* setup tile image */
+  tile_pixbuf = gdk_pixbuf_new_from_xpm_data((const char**) tile_xpm);
+
+  /* apply tile to sock and tile bg */
+  g_signal_connect(G_OBJECT(dapp->sock), "draw", G_CALLBACK(init_tile), NULL);
+  g_signal_connect(G_OBJECT(_tile), "draw", G_CALLBACK(init_tile), NULL);
+
+  g_signal_connect(dapp->sock, "plug-removed", G_CALLBACK(free_dockapp), dapp);
+
+  return _tile;
+}
+
 static int
 dockapp_new(WnckWindow *w) {
- int xpos, ypos, width, height;
  DockApp *dapp;
   
   if ((dapp = malloc(sizeof(*dapp))) == NULL)
@@ -207,23 +226,10 @@ dockapp_new(WnckWindow *w) {
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
   
-  dapp->tile = gtk_fixed_new();
+  wnck_window_get_client_window_geometry(w, &dapp->xpos, &dapp->ypos, &dapp->width, &dapp->height);
 
-  gtk_widget_set_size_request(dapp->sock, width, height);
+  dapp->tile = tile_from_sock(dapp);
   gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
-
-  wnck_window_get_client_window_geometry(w, &xpos, &ypos, &width, &height);
-  /* center dockapps that aren't 64x64 */
-  gtk_fixed_put(GTK_FIXED(dapp->tile),dapp->sock, (DOCKAPP_SIZE-width)/2, (DOCKAPP_SIZE-height)/2);
-
-  /* setup tile image */
-  tile_pixbuf = gdk_pixbuf_new_from_xpm_data((const char**) tile_xpm);
-
-  /* apply tile to sock and tile bg */
-  g_signal_connect(G_OBJECT(dapp->sock), "draw", G_CALLBACK(init_tile), NULL);
-  g_signal_connect(G_OBJECT(dapp->tile), "draw", G_CALLBACK(init_tile), NULL);
-
-  g_signal_connect(dapp->sock, "plug-removed", G_CALLBACK(free_dockapp), dapp);
 
   gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->tile, FALSE, FALSE, 0);
   gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
