@@ -1,4 +1,5 @@
 /*  Copyright (C) 2021 Paul Maurer
+ *  rcfile.h (C) 2021 tezeta
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,36 +16,16 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __WMDOCK_H__
-#define __WMDOCK_H__
+#ifndef __RCFILE_H__
+#define __RCFILE_H__
 
-G_BEGIN_DECLS
+#include "wmdock.h"
 
-/* Dockapp item */
-typedef struct {
-  GtkWidget     *sock;
-  GtkWidget     *tile;
-  unsigned long  id;
-  char          *name;
-  char		*cmd;
+#define RCKEY_CMDLIST                  (const gchar *) "cmds"
+#define RC_LIST_DELIMITER   (const gchar *) ";"
 
-  int           xpos;
-  int           ypos;
-  int           width;
-  int           height;
-} DockApp;
+/* Prototypes */
+void wmdock_read_rc_file (WmdockPlugin *);
+void wmdock_write_rc_file (WmdockPlugin *);
 
-/* plugin structure */
-typedef struct {
-  XfcePanelPlugin *plugin;
-  
-  /* panel widgets */
-  GtkWidget       *ebox;
-  GtkWidget       *hvbox;
-  
-  GList           *dapps;
-} WmdockPlugin;
-
-G_END_DECLS
-
-#endif /* !__WMDOCK_H__ */
+#endif /* __RCFILE_H__ */

@@ -31,9 +31,19 @@
 #include <gtk/gtkx.h>
 #include <libxfce4util/libxfce4util.h>
 #include <libxfce4panel/libxfce4panel.h>
+#include <libxfce4ui/libxfce4ui.h>
 
 #include "wmdock.h"
 #include "wmdock-dialogs.h"
+#include "rcfile.h"
+#include "misc.h"
+
+#include "tile.xpm"
+
+/* globals */
+WmdockPlugin *wmdock 		= NULL;
+GdkPixbuf *tile_pixbuf		= NULL;
+cairo_surface_t *tile_surface	= NULL;
 
 /* prototypes */
 static void
@@ -41,8 +51,8 @@ wmdock_construct (XfcePanelPlugin *plugin);
 
 static void
 wmdock_window_open(WnckScreen   *s,
-		   WnckWindow   *w,
-		   WmdockPlugin *wmdock);
+		   WnckWindow   *w
+		   );
 
 /* register the plugin */
 XFCE_PANEL_PLUGIN_REGISTER (wmdock_construct);
@@ -51,7 +61,6 @@ XFCE_PANEL_PLUGIN_REGISTER (wmdock_construct);
 
 static WmdockPlugin *
 wmdock_new (XfcePanelPlugin *plugin) {
-  WmdockPlugin   *wmdock;
   GtkOrientation  orientation;
 
   /* allocate memory for the plugin structure */
@@ -75,8 +84,7 @@ wmdock_new (XfcePanelPlugin *plugin) {
 }
 
 static void
-wmdock_free (XfcePanelPlugin *plugin,
-             WmdockPlugin    *wmdock) {
+wmdock_free (XfcePanelPlugin *plugin) {
   /* destroy the panel widgets */
   gtk_widget_destroy (wmdock->hvbox);
 
@@ -86,16 +94,16 @@ wmdock_free (XfcePanelPlugin *plugin,
 
 static void
 wmdock_orientation_changed (XfcePanelPlugin *plugin,
-                            GtkOrientation   orientation,
-                            WmdockPlugin    *wmdock) {
+                            GtkOrientation   orientation
+			    ) {
   /* change the orientation of the box */
   gtk_orientable_set_orientation(GTK_ORIENTABLE(wmdock->hvbox), orientation);
 }
 
 static gboolean
 wmdock_size_changed (XfcePanelPlugin *plugin,
-                     gint             size,
-                     WmdockPlugin    *wmdock) {
+                     gint             size
+                     ) {
   GtkOrientation orientation;
 
   /* get the orientation of the plugin */
@@ -113,7 +121,6 @@ wmdock_size_changed (XfcePanelPlugin *plugin,
 
 static void
 wmdock_construct (XfcePanelPlugin *plugin) {
-  WmdockPlugin *wmdock;
   WnckScreen *screen;
 
   /* setup transation domain */
@@ -130,6 +137,7 @@ wmdock_construct (XfcePanelPlugin *plugin) {
   
   /* connect plugin signals */
   screen = wnck_screen_get(0);
+  wmdock_read_rc_file(wmdock);
   g_signal_connect (screen, "window_opened",
 		    G_CALLBACK(wmdock_window_open), wmdock);
   g_signal_connect (G_OBJECT (plugin), "free-data",
@@ -147,7 +155,31 @@ wmdock_construct (XfcePanelPlugin *plugin) {
                     G_CALLBACK (wmdock_about), NULL);
 }
 
-static int
+static void update_tile(cairo_t *cr) {
+  tile_surface = gdk_cairo_surface_create_from_pixbuf(tile_pixbuf, 0, NULL);
+  cairo_set_source_surface(cr, tile_surface, 0, 0);
+
+  cairo_paint(cr);
+
+  cairo_surface_destroy(tile_surface);
+}
+
+static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
+  fprintf(stderr,"wmdock.c: Remove %s\n",dapp->name);
+  /* remove dockapp from list */
+  wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
+  gtk_widget_destroy(GTK_WIDGET(dapp->tile));
+  wmdock_write_rc_file(wmdock);
+  free(dapp);
+}
+
+static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
+{
+  update_tile(cr);
+  return FALSE;
+}
+
+int
 is_dockapp(WnckWindow *w) {
   int xpos, ypos, width, height;
   const char *name;
@@ -158,35 +190,64 @@ is_dockapp(WnckWindow *w) {
     return 0;
   
   wnck_window_get_client_window_geometry(w, &xpos, &ypos, &width, &height);
-  if (height != DOCKAPP_SIZE || width != DOCKAPP_SIZE)
+  //some dockapps don't have 64x64 geometry (wmclock), if dockapps are smaller than 64px allow them
+  if (height > DOCKAPP_SIZE || width > DOCKAPP_SIZE)
       return 0;
   
   return 1;
 }
 
-static int
-dockapp_new(WmdockPlugin *wmdock, WnckWindow *w) {
-  DockApp *dapp;
+GtkWidget *tile_from_sock(DockApp *dapp) {
+  GtkWidget *_tile = gtk_fixed_new();
+
+  gtk_widget_set_size_request(dapp->sock, dapp->width, dapp->height);
+
+  /* center dockapps that aren't 64x64 */
+  gtk_fixed_put(GTK_FIXED(_tile),dapp->sock, (DOCKAPP_SIZE-dapp->width)/2, (DOCKAPP_SIZE-dapp->height)/2);
+
+  /* setup tile image */
+  tile_pixbuf = gdk_pixbuf_new_from_xpm_data((const char**) tile_xpm);
+
+  /* apply tile to sock and tile bg */
+  g_signal_connect(G_OBJECT(dapp->sock), "draw", G_CALLBACK(init_tile), NULL);
+  g_signal_connect(G_OBJECT(_tile), "draw", G_CALLBACK(init_tile), NULL);
+
+  g_signal_connect(G_OBJECT(dapp->sock), "plug-removed", G_CALLBACK(free_dockapp), dapp);
+
+  gtk_widget_show_all(_tile);
+
+  return _tile;
+}
+
+int
+dockapp_new(WnckWindow *w) {
+ DockApp *dapp;
   
   if ((dapp = malloc(sizeof(*dapp))) == NULL)
     goto err;
-  
+
+  dapp->name = wnck_window_get_name(w);
   dapp->id = wnck_window_get_xid(w);
-  
+  dapp->cmd = wmdock_get_dockapp_cmd(w);
+
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
-  gtk_widget_set_size_request(dapp->sock, DOCKAPP_SIZE, DOCKAPP_SIZE);
-  gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->sock, FALSE, FALSE, 0);
-  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
-  gtk_widget_show_all(dapp->sock);
   
+  wnck_window_get_client_window_geometry(w, &dapp->xpos, &dapp->ypos, &dapp->width, &dapp->height);
+
+  dapp->tile = tile_from_sock(dapp);
+  gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
+
+  gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->tile, FALSE, FALSE, 0);
+
   wnck_window_stick(w);
   wnck_window_set_skip_tasklist(w, TRUE);
   wnck_window_set_skip_pager(w, TRUE);
   
   wnck_window_minimize(w);
   wmdock->dapps = g_list_append(wmdock->dapps, dapp);
-
+  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
+  
   return 0;
   
  err2:
@@ -197,14 +258,15 @@ dockapp_new(WmdockPlugin *wmdock, WnckWindow *w) {
 
 static void
 wmdock_window_open(WnckScreen   *s,
-		   WnckWindow   *w,
-		   WmdockPlugin *wmdock) {
+		   WnckWindow   *w
+		   ) {
   gdk_display_flush(gdk_display_get_default());
   
   if (!is_dockapp(w))
     return;
   
-  fprintf(stderr, "Found dockapp: %s\n", wnck_window_get_name(w));
-  
-  dockapp_new(wmdock, w);
+  fprintf(stderr, "dockapp.c: Found dockapp: %s\n", wnck_window_get_name(w));
+   
+  dockapp_new(w);
+  wmdock_write_rc_file(wmdock);
 }

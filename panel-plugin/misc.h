@@ -1,4 +1,5 @@
 /*  Copyright (C) 2021 Paul Maurer
+ *  misc.h (C) 2021 tezeta
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,36 +16,12 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __WMDOCK_H__
-#define __WMDOCK_H__
+#ifndef __MISC_H__
+#define __MISC_H__
 
-G_BEGIN_DECLS
+gchar *wmdock_get_dockapp_cmd (WnckWindow *);
+gboolean wmdock_startup_dockapp (const gchar *cmd);
 
-/* Dockapp item */
-typedef struct {
-  GtkWidget     *sock;
-  GtkWidget     *tile;
-  unsigned long  id;
-  char          *name;
-  char		*cmd;
+#define BUF_MAX 4096
 
-  int           xpos;
-  int           ypos;
-  int           width;
-  int           height;
-} DockApp;
-
-/* plugin structure */
-typedef struct {
-  XfcePanelPlugin *plugin;
-  
-  /* panel widgets */
-  GtkWidget       *ebox;
-  GtkWidget       *hvbox;
-  
-  GList           *dapps;
-} WmdockPlugin;
-
-G_END_DECLS
-
-#endif /* !__WMDOCK_H__ */
+#endif /* __RCFILE_H__ */
