@@ -1,0 +1,115 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define WNCK_I_KNOW_THIS_IS_UNSTABLE
+#include <libwnck/libwnck.h>
+
+#include <gtk/gtk.h>
+#include <libxfce4util/libxfce4util.h>
+#include <libxfce4panel/libxfce4panel.h>
+#include <libxfce4ui/libxfce4ui.h>
+
+#include "rcfile.h"
+#include "misc.h"
+
+#define DOCKAPP_SIZE 64
+
+void wmdock_read_rc_file (WmdockPlugin *wmdock)
+{
+	gchar     *file = NULL;
+	XfceRc    *rc = NULL;
+	gchar **rcCmds = NULL;
+	gint      i = 0, launched = 0;
+	XfcePanelPlugin *plugin = NULL;
+	GList *windows;
+	WnckScreen *screen;
+
+	screen = wnck_screen_get_default();
+
+	plugin = wmdock->plugin;
+	if (!(file = xfce_panel_plugin_lookup_rc_file (plugin))) return;
+
+	rc = xfce_rc_simple_open (file, TRUE);
+	g_free(file);
+	if(!rc)
+		return;
+
+	rcCmds = xfce_rc_read_list_entry(rc, RCKEY_CMDLIST, RC_LIST_DELIMITER);
+	xfce_rc_close (rc);
+
+	if(G_LIKELY(rcCmds != NULL)) {
+		if(!(launched = g_malloc0(sizeof (DockApp *) * (g_strv_length(rcCmds)))))
+			return;
+
+		/* launch dockapps */
+		for (i=0;rcCmds[i]; i++) {
+			wmdock_startup_dockapp(rcCmds[i]);
+		}
+
+		g_usleep(1 * G_USEC_PER_SEC);
+
+		/* create tiles for dockapps */
+		for (i=0;rcCmds[i]; i++) {
+			fprintf(stderr,"rcfile.c: Restoring saved dockapp: %s\n", rcCmds[i]);
+
+			/* wait for dockapp to exist */
+			launched = -1;
+			while(launched!=0) {		
+				wnck_screen_force_update(screen);
+				for (windows = wnck_screen_get_windows(screen); windows != NULL; windows = windows->next) {
+					WnckWindow *window = WNCK_WINDOW(windows->data);
+					if ((strcmp(rcCmds[i], wmdock_get_dockapp_cmd(window)) == 0) && (is_dockapp(window))) {
+						launched = dockapp_new(window);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	g_free(launched);
+}
+
+
+void wmdock_write_rc_file (WmdockPlugin *wmdock)
+{
+	gchar       *file = NULL;
+	XfceRc      *rc;
+	gchar       **cmdList = NULL;
+	GList       *dapps;
+	DockApp *dapp = NULL;
+	gint        i = 0;
+
+	if (!(file = xfce_panel_plugin_save_location (wmdock->plugin, TRUE))) return;
+
+	rc = xfce_rc_simple_open (file, FALSE);
+	g_free (file);
+
+	if (!rc)
+		return;
+
+	if(g_list_length (wmdock->dapps) > 0) {
+		cmdList = g_malloc0(sizeof (gchar *) * (g_list_length (wmdock->dapps) + 1));
+		fprintf(stderr,"rcfile.c: Saving dockapps to config file: ");
+		
+		/* iterate dockapps and add them in order to the list */
+		for(dapps = g_list_first(wmdock->dapps) ; dapps; dapps = g_list_next(dapps)) {
+			dapp = dapps->data;
+				
+			if((i = g_list_index(wmdock->dapps, (gconstpointer) dapp)) == -1)
+				continue;
+			cmdList[i] = dapp->cmd ? g_strdup(dapp->cmd) : NULL;
+			fprintf(stderr,"%s;",cmdList[i]);
+		}
+		fprintf(stderr,"\n");
+		xfce_rc_write_list_entry(rc, RCKEY_CMDLIST, cmdList, RC_LIST_DELIMITER);
+		g_strfreev(cmdList);
+	
+	} else {
+		fprintf(stderr,"rcfile.c: No dockapps exist, removing commands entry");
+		xfce_rc_delete_entry(rc, RCKEY_CMDLIST, FALSE);
+	}
+
+	xfce_rc_close(rc);
+}

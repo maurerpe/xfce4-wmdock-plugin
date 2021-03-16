@@ -26,6 +26,7 @@ typedef struct {
   GtkWidget     *tile;
   unsigned long  id;
   char          *name;
+  char		*cmd;
 
   int           xpos;
   int           ypos;

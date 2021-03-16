@@ -31,9 +31,12 @@
 #include <gtk/gtkx.h>
 #include <libxfce4util/libxfce4util.h>
 #include <libxfce4panel/libxfce4panel.h>
+#include <libxfce4ui/libxfce4ui.h>
 
 #include "wmdock.h"
 #include "wmdock-dialogs.h"
+#include "rcfile.h"
+#include "misc.h"
 
 #include "tile.xpm"
 
@@ -134,6 +137,7 @@ wmdock_construct (XfcePanelPlugin *plugin) {
   
   /* connect plugin signals */
   screen = wnck_screen_get(0);
+  wmdock_read_rc_file(wmdock);
   g_signal_connect (screen, "window_opened",
 		    G_CALLBACK(wmdock_window_open), wmdock);
   g_signal_connect (G_OBJECT (plugin), "free-data",
@@ -151,7 +155,31 @@ wmdock_construct (XfcePanelPlugin *plugin) {
                     G_CALLBACK (wmdock_about), NULL);
 }
 
-static int
+static void update_tile(cairo_t *cr) {
+  tile_surface = gdk_cairo_surface_create_from_pixbuf(tile_pixbuf, 0, NULL);
+  cairo_set_source_surface(cr, tile_surface, 0, 0);
+
+  cairo_paint(cr);
+
+  cairo_surface_destroy(tile_surface);
+}
+
+static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
+  fprintf(stderr,"wmdock.c: Remove %s\n",dapp->name);
+  /* remove dockapp from list */
+  wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
+  gtk_widget_destroy(GTK_WIDGET(dapp->tile));
+  wmdock_write_rc_file(wmdock);
+  free(dapp);
+}
+
+static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
+{
+  update_tile(cr);
+  return FALSE;
+}
+
+int
 is_dockapp(WnckWindow *w) {
   int xpos, ypos, width, height;
   const char *name;
@@ -169,30 +197,6 @@ is_dockapp(WnckWindow *w) {
   return 1;
 }
 
- 
-static void update_tile(cairo_t *cr) {
-  tile_surface = gdk_cairo_surface_create_from_pixbuf(tile_pixbuf, 0, NULL);
-  cairo_set_source_surface(cr, tile_surface, 0, 0);
-
-  cairo_paint(cr);
-
-  cairo_surface_destroy(tile_surface);
-}
-
-static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
-  fprintf(stderr,"Remove %i\n",dapp->id);
-  /* remove dockapp from list */
-  wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
-  gtk_widget_destroy(GTK_WIDGET(dapp->tile));
-  free(dapp);
-}
-
-static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
-{
-  update_tile(cr);
-  return FALSE;
-}
-
 GtkWidget *tile_from_sock(DockApp *dapp) {
   GtkWidget *_tile = gtk_fixed_new();
 
@@ -208,12 +212,14 @@ GtkWidget *tile_from_sock(DockApp *dapp) {
   g_signal_connect(G_OBJECT(dapp->sock), "draw", G_CALLBACK(init_tile), NULL);
   g_signal_connect(G_OBJECT(_tile), "draw", G_CALLBACK(init_tile), NULL);
 
-  g_signal_connect(dapp->sock, "plug-removed", G_CALLBACK(free_dockapp), dapp);
+  g_signal_connect(G_OBJECT(dapp->sock), "plug-removed", G_CALLBACK(free_dockapp), dapp);
+
+  gtk_widget_show_all(_tile);
 
   return _tile;
 }
 
-static int
+int
 dockapp_new(WnckWindow *w) {
  DockApp *dapp;
   
@@ -222,7 +228,8 @@ dockapp_new(WnckWindow *w) {
 
   dapp->name = wnck_window_get_name(w);
   dapp->id = wnck_window_get_xid(w);
-  
+  dapp->cmd = wmdock_get_dockapp_cmd(w);
+
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
   
@@ -232,8 +239,6 @@ dockapp_new(WnckWindow *w) {
   gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
 
   gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->tile, FALSE, FALSE, 0);
-  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
-  gtk_widget_show_all(dapp->tile);
 
   wnck_window_stick(w);
   wnck_window_set_skip_tasklist(w, TRUE);
@@ -241,7 +246,8 @@ dockapp_new(WnckWindow *w) {
   
   wnck_window_minimize(w);
   wmdock->dapps = g_list_append(wmdock->dapps, dapp);
-
+  gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
+  
   return 0;
   
  err2:
@@ -259,7 +265,8 @@ wmdock_window_open(WnckScreen   *s,
   if (!is_dockapp(w))
     return;
   
-  fprintf(stderr, "Found dockapp: %s\n", wnck_window_get_name(w));
-  
+  fprintf(stderr, "dockapp.c: Found dockapp: %s\n", wnck_window_get_name(w));
+   
   dockapp_new(w);
+  wmdock_write_rc_file(wmdock);
 }
