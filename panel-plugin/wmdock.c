@@ -35,6 +35,7 @@
 
 #include "wmdock.h"
 #include "wmdock-dialogs.h"
+#include "dnd.h"
 #include "rcfile.h"
 #include "misc.h"
 
@@ -42,8 +43,13 @@
 
 /* globals */
 WmdockPlugin *wmdock 		= NULL;
-GdkPixbuf *tile_pixbuf		= NULL;
-cairo_surface_t *tile_surface	= NULL;
+static GdkPixbuf *tile_pixbuf		= NULL;
+static cairo_surface_t *tile_surface	= NULL;
+static GtkTargetEntry targetList[] = {
+		{ "INTEGER", 0, 0 }
+};
+
+static guint nTargets = G_N_ELEMENTS (targetList);
 
 /* prototypes */
 static void
@@ -173,7 +179,7 @@ static void update_rc_delayed(DockApp *dapp) {
 }
 
 /* event functions */
-static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
+void free_dockapp(GtkWidget *widget, DockApp *dapp) {
   fprintf(stderr,"wmdock.c: Remove %s\n",dapp->name);
   /* remove dockapp from list */
   wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
@@ -206,6 +212,21 @@ is_dockapp(WnckWindow *w) {
       return 0;
   
   return 1;
+}
+
+static void setup_dnd(DockApp *dapp)
+{
+  gtk_drag_dest_set (GTK_WIDGET(dapp->sock), GTK_DEST_DEFAULT_MOTION, targetList,
+    nTargets, GDK_ACTION_MOVE);
+
+  gtk_drag_source_set (GTK_WIDGET(dapp->sock), GDK_BUTTON1_MASK, targetList,
+    nTargets, GDK_ACTION_MOVE);
+
+  g_signal_connect (dapp->sock, "drag-begin", G_CALLBACK (drag_begin_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-data-get", G_CALLBACK (drag_data_get_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-data-received", G_CALLBACK(drag_data_received_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-drop", G_CALLBACK (drag_drop_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-failed", G_CALLBACK (drag_failed_handl), dapp);
 }
 
 static GtkWidget *tile_from_sock(DockApp *dapp) {
@@ -258,6 +279,7 @@ dockapp_new(WnckWindow *w) {
   wnck_window_minimize(w);
   wmdock->dapps = g_list_append(wmdock->dapps, dapp);
   gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
+  g_list_foreach(wmdock->dapps, (GFunc) setup_dnd, NULL);
   
   return 0;
   

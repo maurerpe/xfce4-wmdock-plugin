@@ -50,6 +50,8 @@ typedef struct {
 
 int is_dockapp(WnckWindow *);
 int dockapp_new(WnckWindow *);
+void free_dockapp(GtkWidget *, DockApp *);
+#define DOCKAPP(__dapp) ((DockApp *) __dapp)
 
 G_END_DECLS
 
