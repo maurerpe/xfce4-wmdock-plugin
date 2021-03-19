@@ -62,24 +62,9 @@ void drag_begin_handl (GtkWidget *widget, GdkDragContext *context,
 gboolean drag_failed_handl(GtkWidget *widget, GdkDragContext *context,
     GtkDragResult result, gpointer dapp)
 {
-  //GtkWidget *gtkDlg = NULL;
-
   if(result == GTK_DRAG_RESULT_NO_TARGET && dapp) {
     fprintf(stderr,"dnd.c: dockapp removal requested\n");
-    // TODO: GtkDialog doesn't seem to play nicely when moving
-    /*                gtkDlg = gtk_message_dialog_new(NULL,
-          GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-          GTK_MESSAGE_QUESTION,
-          GTK_BUTTONS_YES_NO,
-          _("Do you want remove the dockapp \"%s\"?"),
-          ((DockApp *) dapp)->name);
-
-          if(gtk_dialog_run (GTK_DIALOG(gtkDlg)) == GTK_RESPONSE_YES)
-          */
-
     free_dockapp(DOCKAPP(dapp)->sock,(DockApp *) dapp);
-
-    //    gtk_widget_destroy (GTK_WIDGET(gtkDlg));
   }
   return TRUE;
 }
