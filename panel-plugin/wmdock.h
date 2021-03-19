@@ -20,13 +20,16 @@
 
 G_BEGIN_DECLS
 
+#define WNCK_I_KNOW_THIS_IS_UNSTABLE
+#include <libwnck/libwnck.h>
+
 /* Dockapp item */
 typedef struct {
   GtkWidget     *sock;
   GtkWidget     *tile;
   unsigned long  id;
-  char          *name;
-  char		*cmd;
+  const char          *name;
+  const char		*cmd;
 
   int           xpos;
   int           ypos;
@@ -44,6 +47,9 @@ typedef struct {
   
   GList           *dapps;
 } WmdockPlugin;
+
+int is_dockapp(WnckWindow *);
+int dockapp_new(WnckWindow *);
 
 G_END_DECLS
 

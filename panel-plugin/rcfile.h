@@ -19,7 +19,7 @@
 #ifndef __RCFILE_H__
 #define __RCFILE_H__
 
-#include "wmdock.h"
+G_BEGIN_DECLS
 
 #define RCKEY_CMDLIST                  (const gchar *) "cmds"
 #define RC_LIST_DELIMITER   (const gchar *) ";"
@@ -27,5 +27,7 @@
 /* Prototypes */
 void wmdock_read_rc_file (WmdockPlugin *);
 void wmdock_write_rc_file (WmdockPlugin *);
+
+G_END_DECLS
 
 #endif /* __RCFILE_H__ */

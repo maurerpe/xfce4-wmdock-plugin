@@ -155,6 +155,7 @@ wmdock_construct (XfcePanelPlugin *plugin) {
                     G_CALLBACK (wmdock_about), NULL);
 }
 
+/* event utility functions */
 static void update_tile(cairo_t *cr) {
   tile_surface = gdk_cairo_surface_create_from_pixbuf(tile_pixbuf, 0, NULL);
   cairo_set_source_surface(cr, tile_surface, 0, 0);
@@ -164,12 +165,21 @@ static void update_tile(cairo_t *cr) {
   cairo_surface_destroy(tile_surface);
 }
 
+static void update_rc_delayed(DockApp *dapp) {
+  /* wait a sec before updating the rcfile 
+   * workaround for dockapps being removed on logout */
+  g_usleep(1 * G_USEC_PER_SEC);
+  wmdock_write_rc_file(wmdock);
+}
+
+/* event functions */
 static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
   fprintf(stderr,"wmdock.c: Remove %s\n",dapp->name);
   /* remove dockapp from list */
   wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
   gtk_widget_destroy(GTK_WIDGET(dapp->tile));
-  wmdock_write_rc_file(wmdock);
+  /* use a new thread to save the list of dockapps in background */
+  g_thread_try_new(NULL, (GThreadFunc)update_rc_delayed, wmdock, NULL);
   free(dapp);
 }
 
@@ -179,6 +189,7 @@ static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
   return FALSE;
 }
 
+/* init functions */
 int
 is_dockapp(WnckWindow *w) {
   int xpos, ypos, width, height;
@@ -197,7 +208,7 @@ is_dockapp(WnckWindow *w) {
   return 1;
 }
 
-GtkWidget *tile_from_sock(DockApp *dapp) {
+static GtkWidget *tile_from_sock(DockApp *dapp) {
   GtkWidget *_tile = gtk_fixed_new();
 
   gtk_widget_set_size_request(dapp->sock, dapp->width, dapp->height);
