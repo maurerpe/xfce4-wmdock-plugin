@@ -42,130 +42,130 @@
 extern WmdockPlugin *wmdock;
 
 void drag_begin_handl (GtkWidget *widget, GdkDragContext *context,
-		gpointer dapp)
+    gpointer dapp)
 {
-	GdkPixbuf *gdkPb = NULL, *gdkPbScaled = NULL;
-	gint width = 0, height = 0;
+  GdkPixbuf *gdkPb = NULL, *gdkPbScaled = NULL;
+  gint width = 0, height = 0;
 
-	gtk_widget_get_size_request(GTK_WIDGET(DOCKAPP(dapp)->sock), &width, &height);
+  gtk_widget_get_size_request(GTK_WIDGET(DOCKAPP(dapp)->sock), &width, &height);
 
-	if((gdkPb = gdk_pixbuf_get_from_window (gtk_widget_get_window(GTK_WIDGET(DOCKAPP(dapp)->sock)),
-					0, 0, width, height))) {
-		gdkPbScaled = gdk_pixbuf_scale_simple(gdkPb, DOCKAPP_SIZE / 2, DOCKAPP_SIZE / 2, GDK_INTERP_BILINEAR);
-		gtk_drag_set_icon_pixbuf (context, gdkPbScaled ? gdkPbScaled : gdkPb, 0, 0);
+  if((gdkPb = gdk_pixbuf_get_from_window (gtk_widget_get_window(GTK_WIDGET(DOCKAPP(dapp)->sock)),
+          0, 0, width, height))) {
+    gdkPbScaled = gdk_pixbuf_scale_simple(gdkPb, DOCKAPP_SIZE / 2, DOCKAPP_SIZE / 2, GDK_INTERP_BILINEAR);
+    gtk_drag_set_icon_pixbuf (context, gdkPbScaled ? gdkPbScaled : gdkPb, 0, 0);
 
-		g_object_unref (G_OBJECT(gdkPb));
-		g_object_unref (G_OBJECT(gdkPbScaled));
-	}
+    g_object_unref (G_OBJECT(gdkPb));
+    g_object_unref (G_OBJECT(gdkPbScaled));
+  }
 }
 
 gboolean drag_failed_handl(GtkWidget *widget, GdkDragContext *context,
-		GtkDragResult result, gpointer dapp)
+    GtkDragResult result, gpointer dapp)
 {
-	//GtkWidget *gtkDlg = NULL;
+  //GtkWidget *gtkDlg = NULL;
 
-	if(result == GTK_DRAG_RESULT_NO_TARGET && dapp) {
-		fprintf(stderr,"dnd.c: dockapp removal requested\n");
-		// TODO: GtkDialog doesn't seem to play nicely when moving
-		/*                gtkDlg = gtk_message_dialog_new(NULL,
-				  GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-				  GTK_MESSAGE_QUESTION,
-				  GTK_BUTTONS_YES_NO,
-				  _("Do you want remove the dockapp \"%s\"?"),
-				  ((DockApp *) dapp)->name);
+  if(result == GTK_DRAG_RESULT_NO_TARGET && dapp) {
+    fprintf(stderr,"dnd.c: dockapp removal requested\n");
+    // TODO: GtkDialog doesn't seem to play nicely when moving
+    /*                gtkDlg = gtk_message_dialog_new(NULL,
+          GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+          GTK_MESSAGE_QUESTION,
+          GTK_BUTTONS_YES_NO,
+          _("Do you want remove the dockapp \"%s\"?"),
+          ((DockApp *) dapp)->name);
 
-				  if(gtk_dialog_run (GTK_DIALOG(gtkDlg)) == GTK_RESPONSE_YES)
-				  */
+          if(gtk_dialog_run (GTK_DIALOG(gtkDlg)) == GTK_RESPONSE_YES)
+          */
 
-		free_dockapp(DOCKAPP(dapp)->sock,(DockApp *) dapp);
+    free_dockapp(DOCKAPP(dapp)->sock,(DockApp *) dapp);
 
-		//		gtk_widget_destroy (GTK_WIDGET(gtkDlg));
-	}
-	return TRUE;
+    //    gtk_widget_destroy (GTK_WIDGET(gtkDlg));
+  }
+  return TRUE;
 }
 
 gboolean drag_drop_handl (GtkWidget *widget, GdkDragContext *context,
-		gint x, gint y, guint time, gpointer dapp)
+    gint x, gint y, guint time, gpointer dapp)
 {
-	gboolean        is_valid_drop_site;
-	GdkAtom         target_type;
+  gboolean        is_valid_drop_site;
+  GdkAtom         target_type;
 
-	is_valid_drop_site = TRUE;
+  is_valid_drop_site = TRUE;
 
-	if (gdk_drag_context_list_targets(context))
-	{
-		target_type = GDK_POINTER_TO_ATOM
-			(g_list_nth_data (gdk_drag_context_list_targets(context), 0));
+  if (gdk_drag_context_list_targets(context))
+  {
+    target_type = GDK_POINTER_TO_ATOM
+      (g_list_nth_data (gdk_drag_context_list_targets(context), 0));
 
-		gtk_drag_get_data (widget,context, target_type, time);
-	}
+    gtk_drag_get_data (widget,context, target_type, time);
+  }
 
-	else
-	{
-		is_valid_drop_site = FALSE;
-	}
+  else
+  {
+    is_valid_drop_site = FALSE;
+  }
 
-	return  is_valid_drop_site;
+  return  is_valid_drop_site;
 }
 
 
 
 void drag_data_received_handl (GtkWidget *widget,
-		GdkDragContext *context, gint x, gint y,
-		GtkSelectionData *selection_data,
-		guint target_type, guint time,
-		gpointer dapp)
+    GdkDragContext *context, gint x, gint y,
+    GtkSelectionData *selection_data,
+    guint target_type, guint time,
+    gpointer dapp)
 {
-	glong *_idata;
-	gboolean dnd_success = FALSE;
-	GList *dappsSrc = NULL;
-	GList *dappsDst = NULL;
+  glong *_idata;
+  gboolean dnd_success = FALSE;
+  GList *dappsSrc = NULL;
+  GList *dappsDst = NULL;
 
-	if(target_type == 0) {
-		_idata = (glong*) gtk_selection_data_get_data(selection_data);
+  if(target_type == 0) {
+    _idata = (glong*) gtk_selection_data_get_data(selection_data);
 
-		dnd_success = TRUE;
+    dnd_success = TRUE;
 
-		if(dapp) {
-			dappsSrc = g_list_nth(wmdock->dapps, *_idata);
-			dappsDst = g_list_find(wmdock->dapps, (DockApp *) dapp);
+    if(dapp) {
+      dappsSrc = g_list_nth(wmdock->dapps, *_idata);
+      dappsDst = g_list_find(wmdock->dapps, (DockApp *) dapp);
 
-			if(dappsSrc->data != dappsDst->data) {
-				dappsDst->data = dappsSrc->data;
-				dappsSrc->data = dapp;
+      if(dappsSrc->data != dappsDst->data) {
+        dappsDst->data = dappsSrc->data;
+        dappsSrc->data = dapp;
 
-				gtk_box_reorder_child(GTK_BOX(wmdock->hvbox),
-						GTK_WIDGET(DOCKAPP(dappsSrc->data)->tile),
-						g_list_index (wmdock->dapps, dappsSrc->data));
-				gtk_box_reorder_child(GTK_BOX(wmdock->hvbox),
-						GTK_WIDGET(DOCKAPP(dappsDst->data)->tile),
-						g_list_index (wmdock->dapps, dappsDst->data));
-				fprintf(stderr,"dnd.c: dockapp reorder completed\n");
-				wmdock_write_rc_file(wmdock);
+        gtk_box_reorder_child(GTK_BOX(wmdock->hvbox),
+            GTK_WIDGET(DOCKAPP(dappsSrc->data)->tile),
+            g_list_index (wmdock->dapps, dappsSrc->data));
+        gtk_box_reorder_child(GTK_BOX(wmdock->hvbox),
+            GTK_WIDGET(DOCKAPP(dappsDst->data)->tile),
+            g_list_index (wmdock->dapps, dappsDst->data));
+        fprintf(stderr,"dnd.c: dockapp reorder completed\n");
+        wmdock_write_rc_file(wmdock);
 
-			}
+      }
 
-		}
+    }
 
-	}
-	gtk_drag_finish (context, dnd_success, FALSE, time);
+  }
+  gtk_drag_finish (context, dnd_success, FALSE, time);
 
 }
 
 
 
 void drag_data_get_handl (GtkWidget *widget, GdkDragContext *context,
-		GtkSelectionData *selection_data,
-		guint target_type, guint time,
-		gpointer dapp)
+    GtkSelectionData *selection_data,
+    guint target_type, guint time,
+    gpointer dapp)
 {
-	gint index;
+  gint index;
 
-	if(target_type == 0 && dapp) {
-		index = g_list_index (wmdock->dapps, (DockApp *) dapp);
+  if(target_type == 0 && dapp) {
+    index = g_list_index (wmdock->dapps, (DockApp *) dapp);
 
-		gtk_selection_data_set (selection_data, gtk_selection_data_get_target(selection_data),
-				sizeof(index) * _BYTE,
-				(guchar*) &index, sizeof (index));
-	}
+    gtk_selection_data_set (selection_data, gtk_selection_data_get_target(selection_data),
+        sizeof(index) * _BYTE,
+        (guchar*) &index, sizeof (index));
+  }
 }
