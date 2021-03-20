@@ -63,7 +63,7 @@ gboolean drag_failed_handl(GtkWidget *widget, GdkDragContext *context,
     GtkDragResult result, gpointer dapp)
 {
   if(result == GTK_DRAG_RESULT_NO_TARGET && dapp) {
-    fprintf(stderr,"dnd.c: dockapp removal requested\n");
+    fprintf(stderr,"dnd.c: dockapp removal requested: %s\n",DOCKAPP(dapp)->name);
     free_dockapp(DOCKAPP(dapp)->sock,(DockApp *) dapp);
   }
   return TRUE;
