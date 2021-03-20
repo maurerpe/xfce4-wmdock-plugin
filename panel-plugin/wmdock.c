@@ -275,7 +275,8 @@ dockapp_new(WnckWindow *w) {
   wnck_window_stick(w);
   wnck_window_set_skip_tasklist(w, TRUE);
   wnck_window_set_skip_pager(w, TRUE);
-  
+  wnck_window_set_window_type(w, WNCK_WINDOW_DOCK);
+
   wnck_window_minimize(w);
   wmdock->dapps = g_list_append(wmdock->dapps, dapp);
   gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
