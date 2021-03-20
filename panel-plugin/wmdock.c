@@ -298,7 +298,7 @@ wmdock_window_open(WnckScreen   *s,
   if (!is_dockapp(w))
     return;
   
-  fprintf(stderr, "dockapp.c: Found dockapp: %s\n", wnck_window_get_name(w));
+  fprintf(stderr, "wmdock.c: Found dockapp: %s\n", wnck_window_get_name(w));
    
   dockapp_new(w);
   wmdock_write_rc_file(wmdock);
