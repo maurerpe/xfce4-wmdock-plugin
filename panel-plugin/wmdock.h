@@ -27,6 +27,7 @@ G_BEGIN_DECLS
 typedef struct {
   GtkWidget     *sock;
   GtkWidget     *tile;
+  WnckWindow	*window;
   unsigned long  id;
   const char          *name;
   const char		*cmd;
