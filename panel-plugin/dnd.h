@@ -20,10 +20,14 @@
 #ifndef __DND_H__
 #define __DND_H__
 
+G_BEGIN_DECLS
+
 void drag_begin_handl (GtkWidget *, GdkDragContext *, gpointer);
 gboolean drag_drop_handl (GtkWidget *, GdkDragContext *, gint, gint, guint, gpointer);
 void drag_data_received_handl (GtkWidget *, GdkDragContext *, gint, gint, GtkSelectionData *, guint, guint, gpointer);
 void drag_data_get_handl (GtkWidget *, GdkDragContext *, GtkSelectionData *, guint, guint, gpointer);
 gboolean drag_failed_handl(GtkWidget *, GdkDragContext *, GtkDragResult, gpointer);
+
+G_END_DECLS
 
 #endif /* __DND_H__ */
