@@ -43,6 +43,7 @@ wmdock_about (XfcePanelPlugin *plugin)
   const gchar *auth[] =
     {
       "Paul Maurer",
+      "Tezeta",
       NULL
     };
 

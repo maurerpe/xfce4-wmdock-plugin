@@ -35,6 +35,7 @@
 
 #include "wmdock.h"
 #include "wmdock-dialogs.h"
+#include "dnd.h"
 #include "rcfile.h"
 #include "misc.h"
 
@@ -42,8 +43,13 @@
 
 /* globals */
 WmdockPlugin *wmdock 		= NULL;
-GdkPixbuf *tile_pixbuf		= NULL;
-cairo_surface_t *tile_surface	= NULL;
+static GdkPixbuf *tile_pixbuf		= NULL;
+static cairo_surface_t *tile_surface	= NULL;
+static GtkTargetEntry targetList[] = {
+		{ "INTEGER", 0, 0 }
+};
+
+static guint nTargets = G_N_ELEMENTS (targetList);
 
 /* prototypes */
 static void
@@ -155,6 +161,7 @@ wmdock_construct (XfcePanelPlugin *plugin) {
                     G_CALLBACK (wmdock_about), NULL);
 }
 
+/* event utility functions */
 static void update_tile(cairo_t *cr) {
   tile_surface = gdk_cairo_surface_create_from_pixbuf(tile_pixbuf, 0, NULL);
   cairo_set_source_surface(cr, tile_surface, 0, 0);
@@ -164,12 +171,27 @@ static void update_tile(cairo_t *cr) {
   cairo_surface_destroy(tile_surface);
 }
 
-static void free_dockapp(GtkWidget *widget, DockApp *dapp) {
+static void update_rc_delayed(DockApp *dapp) {
+  /* wait a sec before updating the rcfile 
+   * workaround for dockapps being removed on logout */
+  g_usleep(1 * G_USEC_PER_SEC);
+  wmdock_write_rc_file(wmdock);
+}
+
+/* event functions */
+void free_dockapp(GtkWidget *widget, DockApp *dapp) {
   fprintf(stderr,"wmdock.c: Remove %s\n",dapp->name);
+
   /* remove dockapp from list */
   wmdock->dapps = g_list_remove_all(wmdock->dapps, dapp);
+
+  /* attempt to close the dockapp in case it's still running */
+  wnck_window_close(dapp->window, gtk_get_current_event_time());
+ 
   gtk_widget_destroy(GTK_WIDGET(dapp->tile));
-  wmdock_write_rc_file(wmdock);
+
+  /* use a new thread to save the list of dockapps in background */
+  g_thread_try_new(NULL, (GThreadFunc)update_rc_delayed, wmdock, NULL);
   free(dapp);
 }
 
@@ -179,6 +201,7 @@ static gboolean init_tile(GtkWidget *widget, cairo_t *cr)
   return FALSE;
 }
 
+/* init functions */
 int
 is_dockapp(WnckWindow *w) {
   int xpos, ypos, width, height;
@@ -197,7 +220,22 @@ is_dockapp(WnckWindow *w) {
   return 1;
 }
 
-GtkWidget *tile_from_sock(DockApp *dapp) {
+static void setup_dnd(DockApp *dapp)
+{
+  gtk_drag_dest_set (GTK_WIDGET(dapp->sock), GTK_DEST_DEFAULT_MOTION, targetList,
+    nTargets, GDK_ACTION_MOVE);
+
+  gtk_drag_source_set (GTK_WIDGET(dapp->sock), GDK_BUTTON1_MASK, targetList,
+    nTargets, GDK_ACTION_MOVE);
+
+  g_signal_connect (dapp->sock, "drag-begin", G_CALLBACK (drag_begin_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-data-get", G_CALLBACK (drag_data_get_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-data-received", G_CALLBACK(drag_data_received_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-drop", G_CALLBACK (drag_drop_handl), dapp);
+  g_signal_connect (dapp->sock, "drag-failed", G_CALLBACK (drag_failed_handl), dapp);
+}
+
+static GtkWidget *tile_from_sock(DockApp *dapp) {
   GtkWidget *_tile = gtk_fixed_new();
 
   gtk_widget_set_size_request(dapp->sock, dapp->width, dapp->height);
@@ -225,29 +263,34 @@ dockapp_new(WnckWindow *w) {
   
   if ((dapp = malloc(sizeof(*dapp))) == NULL)
     goto err;
+ 
+  /* keep the window for later use */
+  dapp->window = w;
 
-  dapp->name = wnck_window_get_name(w);
-  dapp->id = wnck_window_get_xid(w);
-  dapp->cmd = wmdock_get_dockapp_cmd(w);
+  dapp->name = wnck_window_get_name(dapp->window);
+  dapp->id = wnck_window_get_xid(dapp->window);
+  dapp->cmd = wmdock_get_dockapp_cmd(dapp->window);
 
   if ((dapp->sock = gtk_socket_new()) == NULL)
     goto err2;
   
-  wnck_window_get_client_window_geometry(w, &dapp->xpos, &dapp->ypos, &dapp->width, &dapp->height);
+  wnck_window_get_client_window_geometry(dapp->window, &dapp->xpos, &dapp->ypos, &dapp->width, &dapp->height);
 
   dapp->tile = tile_from_sock(dapp);
   gtk_widget_set_size_request(dapp->tile, DOCKAPP_SIZE, DOCKAPP_SIZE);
 
   gtk_box_pack_start(GTK_BOX(wmdock->hvbox), dapp->tile, FALSE, FALSE, 0);
 
-  wnck_window_stick(w);
-  wnck_window_set_skip_tasklist(w, TRUE);
-  wnck_window_set_skip_pager(w, TRUE);
-  
-  wnck_window_minimize(w);
+  wnck_window_stick(dapp->window);
+  wnck_window_set_skip_tasklist(dapp->window, TRUE);
+  wnck_window_set_skip_pager(dapp->window, TRUE);
+  wnck_window_set_window_type(dapp->window, WNCK_WINDOW_DOCK);
+
+  wnck_window_minimize(dapp->window);
   wmdock->dapps = g_list_append(wmdock->dapps, dapp);
   gtk_socket_add_id(GTK_SOCKET(dapp->sock), dapp->id);
-  
+  g_list_foreach(wmdock->dapps, (GFunc) setup_dnd, NULL);
+ 
   return 0;
   
  err2:
@@ -265,8 +308,8 @@ wmdock_window_open(WnckScreen   *s,
   if (!is_dockapp(w))
     return;
   
-  fprintf(stderr, "dockapp.c: Found dockapp: %s\n", wnck_window_get_name(w));
-   
+  fprintf(stderr, "wmdock.c: Found dockapp: %s\n", wnck_window_get_name(w));
+
   dockapp_new(w);
   wmdock_write_rc_file(wmdock);
 }

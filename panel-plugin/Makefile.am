@@ -21,6 +21,8 @@ libwmdock_la_SOURCES = \
 	rcfile.h \
 	misc.c \
 	misc.h \
+	dnd.c \
+	dnd.h \
 	wmdock-dialogs.c \
 	wmdock-dialogs.h
 
