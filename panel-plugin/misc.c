@@ -22,6 +22,7 @@
 
 #define WNCK_I_KNOW_THIS_IS_UNSTABLE
 #include <libwnck/libwnck.h>
+#include <libxfce4ui/libxfce4ui.h>
 
 #include <gtk/gtk.h>
 #include <gtk/gtkx.h>
@@ -87,7 +88,7 @@ gboolean wmdock_startup_dockapp(const gchar *cmd)
   gboolean ret;
   GError *err = NULL;
 
-  ret = xfce_spawn_command_line_on_screen(gdk_screen_get_default(), cmd, 0, 0, &err);
+  ret = xfce_spawn_command_line(gdk_screen_get_default(), cmd, 0, 0, 1, &err);
 
   if(err) g_clear_error (&err);
 

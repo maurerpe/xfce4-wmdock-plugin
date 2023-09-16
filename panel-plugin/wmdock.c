@@ -127,6 +127,7 @@ wmdock_size_changed (XfcePanelPlugin *plugin,
 
 static void
 wmdock_construct (XfcePanelPlugin *plugin) {
+  WnckHandle *handle;
   WnckScreen *screen;
 
   /* setup transation domain */
@@ -142,7 +143,8 @@ wmdock_construct (XfcePanelPlugin *plugin) {
   xfce_panel_plugin_add_action_widget (plugin, wmdock->ebox);
   
   /* connect plugin signals */
-  screen = wnck_screen_get(0);
+  handle = wnck_handle_new(WNCK_CLIENT_TYPE_APPLICATION);
+  screen = wnck_handle_get_screen(handle, 0);
   wmdock_read_rc_file(wmdock);
   g_signal_connect (screen, "window_opened",
 		    G_CALLBACK(wmdock_window_open), wmdock);
@@ -171,11 +173,12 @@ static void update_tile(cairo_t *cr) {
   cairo_surface_destroy(tile_surface);
 }
 
-static void update_rc_delayed(DockApp *dapp) {
+static void *update_rc_delayed(DockApp *dapp) {
   /* wait a sec before updating the rcfile 
    * workaround for dockapps being removed on logout */
   g_usleep(1 * G_USEC_PER_SEC);
   wmdock_write_rc_file(wmdock);
+  return NULL;
 }
 
 /* event functions */
@@ -220,7 +223,7 @@ is_dockapp(WnckWindow *w) {
   return 1;
 }
 
-static void setup_dnd(DockApp *dapp)
+static void setup_dnd(DockApp *dapp, void *user_data)
 {
   gtk_drag_dest_set (GTK_WIDGET(dapp->sock), GTK_DEST_DEFAULT_MOTION, targetList,
     nTargets, GDK_ACTION_MOVE);

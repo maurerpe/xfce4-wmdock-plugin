@@ -39,12 +39,15 @@ void wmdock_read_rc_file (WmdockPlugin *wmdock)
   gchar     *file = NULL;
   XfceRc    *rc = NULL;
   gchar **rcCmds = NULL;
-  gint      i = 0, launched = 0;
+  gint      i = 0;
+  gpointer launched = NULL;
   XfcePanelPlugin *plugin = NULL;
   GList *windows;
+  WnckHandle *handle;
   WnckScreen *screen;
 
-  screen = wnck_screen_get_default();
+  handle = wnck_handle_new(WNCK_CLIENT_TYPE_APPLICATION);
+  screen = wnck_handle_get_default_screen(handle);
 
   plugin = wmdock->plugin;
   if (!(file = xfce_panel_plugin_lookup_rc_file (plugin))) return;
@@ -77,7 +80,7 @@ void wmdock_read_rc_file (WmdockPlugin *wmdock)
       for (windows = wnck_screen_get_windows(screen); windows != NULL; windows = windows->next) {
         WnckWindow *window = WNCK_WINDOW(windows->data);
         if ((strcmp(rcCmds[i], wmdock_get_dockapp_cmd(window)) == 0) && (is_dockapp(window))) {
-          launched = dockapp_new(window);
+          dockapp_new(window);
           break;
         }
       }

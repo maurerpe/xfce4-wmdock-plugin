@@ -33,6 +33,7 @@
 #include <libxfce4panel/libxfce4panel.h>
 
 #include "wmdock.h"
+#include "rcfile.h"
 #include "misc.h"
 #include "dnd.h"
 
