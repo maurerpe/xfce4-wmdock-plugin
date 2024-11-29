@@ -24,6 +24,8 @@ G_BEGIN_DECLS
 #define RCKEY_CMDLIST                  (const gchar *) "cmds"
 #define RC_LIST_DELIMITER   (const gchar *) ";"
 
+#define RCKEY_WRITECFG (const gchar *) "writeCfg"
+
 /* Prototypes */
 void wmdock_read_rc_file (WmdockPlugin *);
 void wmdock_write_rc_file (WmdockPlugin *);

@@ -47,6 +47,7 @@ typedef struct {
   GtkWidget       *hvbox;
   
   GList           *dapps;
+  gboolean        writeCfg;
 } WmdockPlugin;
 
 int is_dockapp(WnckWindow *);

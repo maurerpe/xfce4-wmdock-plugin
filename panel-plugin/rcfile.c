@@ -39,6 +39,7 @@ void wmdock_read_rc_file (WmdockPlugin *wmdock)
   gchar     *file = NULL;
   XfceRc    *rc = NULL;
   gchar **rcCmds = NULL;
+  gboolean writeCfg = TRUE;
   gint      i = 0;
   gpointer launched = NULL;
   XfcePanelPlugin *plugin = NULL;
@@ -58,7 +59,10 @@ void wmdock_read_rc_file (WmdockPlugin *wmdock)
     return;
 
   rcCmds = xfce_rc_read_list_entry(rc, RCKEY_CMDLIST, RC_LIST_DELIMITER);
+  writeCfg = xfce_rc_read_bool_entry(rc, RCKEY_WRITECFG, TRUE);
   xfce_rc_close (rc);
+
+  wmdock->writeCfg = writeCfg;
 
   if(G_LIKELY(rcCmds != NULL)) {
     if(!(launched = g_malloc0(sizeof (DockApp *) * (g_strv_length(rcCmds)))))
@@ -100,6 +104,9 @@ void wmdock_write_rc_file (WmdockPlugin *wmdock)
   DockApp *dapp = NULL;
   gint        i = 0;
 
+  if (!wmdock->writeCfg)
+    return;
+
   if (!(file = xfce_panel_plugin_save_location (wmdock->plugin, TRUE))) return;
 
   rc = xfce_rc_simple_open (file, FALSE);
@@ -108,6 +115,7 @@ void wmdock_write_rc_file (WmdockPlugin *wmdock)
   if (!rc)
     return;
 
+  xfce_rc_write_bool_entry(rc, RCKEY_WRITECFG, wmdock->writeCfg);
   if(g_list_length (wmdock->dapps) > 0) {
     cmdList = g_malloc0(sizeof (gchar *) * (g_list_length (wmdock->dapps) + 1));
     fprintf(stderr,"rcfile.c: Saving dockapps to config file: ");
